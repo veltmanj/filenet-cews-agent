@@ -197,6 +197,65 @@ Windows syntax notes:
 - The `output=` value can safely use forward slashes on Windows.
 - Make sure the WebSphere service account can read the jar and write the output file path.
 
+### wsadmin Automation
+
+The repository also includes wsadmin helper scripts for adding or removing the agent from a WebSphere server without editing Generic JVM arguments manually.
+
+The examples below assume a standalone full-profile WebSphere server using a local profile, not Network Deployment.
+
+Shared wsadmin Jython script:
+
+- `scripts/wsadmin/configure-javaagent.py`
+
+Linux wrappers:
+
+- `scripts/wsadmin/add-javaagent-linux.sh`
+- `scripts/wsadmin/remove-javaagent-linux.sh`
+
+Windows wrappers:
+
+- `scripts/wsadmin/add-javaagent-windows.bat`
+- `scripts/wsadmin/remove-javaagent-windows.bat`
+
+Linux add example:
+
+```bash
+WSADMIN_CMD=/opt/IBM/WebSphere/AppServer/profiles/<Profile>/bin/wsadmin.sh \
+./scripts/wsadmin/add-javaagent-linux.sh MyCell MyNode server1 /opt/filenet-cews-agent
+```
+
+Linux remove example:
+
+```bash
+WSADMIN_CMD=/opt/IBM/WebSphere/AppServer/profiles/<Profile>/bin/wsadmin.sh \
+./scripts/wsadmin/remove-javaagent-linux.sh MyCell MyNode server1 /opt/filenet-cews-agent
+```
+
+Windows add example:
+
+```bat
+set WSADMIN_CMD=C:\IBM\WebSphere\AppServer\profiles\<Profile>\bin\wsadmin.bat
+scripts\wsadmin\add-javaagent-windows.bat MyCell MyNode server1 F:\IBM\Agent\filenet-cews-agent
+```
+
+Windows remove example:
+
+```bat
+set WSADMIN_CMD=C:\IBM\WebSphere\AppServer\profiles\<Profile>\bin\wsadmin.bat
+scripts\wsadmin\remove-javaagent-windows.bat MyCell MyNode server1 F:\IBM\Agent\filenet-cews-agent
+```
+
+If you later run the same scripts against Network Deployment, keep `WSADMIN_CMD` pointed at the deployment-manager profile and set `WSADMIN_ARGS` with the SOAP connection parameters.
+
+Wrapper defaults:
+
+- Linux defaults `agent_dir` to `/opt/filenet-cews-agent`
+- Windows defaults `agent_dir` to `C:\IBM\Agent\filenet-cews-agent`
+- The add wrappers apply `profile=filenet-cews-low-overhead` and write output to `cews-capture.ndjson` in the same directory as the jar
+- The remove wrappers remove the javaagent entry for `filenet-cews-agent-0.1.2.jar`
+
+After running add or remove, restart the target WebSphere server so the JVM arguments take effect.
+
 ## Agent arguments
 
 Arguments are comma-separated key/value pairs:
