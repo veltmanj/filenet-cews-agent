@@ -2,13 +2,19 @@ package nl.nextend.filenet.cews.agent;
 
 import java.lang.instrument.Instrumentation;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.method.MethodDescription;
+import net.bytebuddy.description.type.TypeDescription;
+import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.matcher.ElementMatcher;
 import net.bytebuddy.matcher.ElementMatchers;
+import net.bytebuddy.utility.JavaModule;
 
 /**
  * Entry point for the CEWS request capture javaagent.
@@ -23,6 +29,7 @@ import net.bytebuddy.matcher.ElementMatchers;
 public final class RequestCaptureAgent {
     private static final String AGENT_PACKAGE_PREFIX = "nl.nextend.filenet.cews.agent.";
     private static final String BYTE_BUDDY_PACKAGE_PREFIX = "net.bytebuddy.";
+    private static final String FILTER_CLASS = "javax.servlet.Filter";
     private static final String SERVLET_CLASS = "javax.servlet.Servlet";
     private static final String SERVLET_INPUT_STREAM_CLASS = "javax.servlet.ServletInputStream";
     private static final String SERVLET_REQUEST_CLASS = "javax.servlet.ServletRequest";
@@ -30,6 +37,7 @@ public final class RequestCaptureAgent {
     private static final String HTTP_SERVLET_REQUEST_CLASS = "javax.servlet.http.HttpServletRequest";
     private static final String HTTP_SERVLET_RESPONSE_CLASS = "javax.servlet.http.HttpServletResponse";
     private static final String AGENT_INSTALLED_PHASE = "agent-installed";
+    private static final String AGENT_TRANSFORM_PHASE = "agent-transform";
 
     private static final AtomicReference<AgentRuntime> RUNTIME = new AtomicReference<>();
 
@@ -104,9 +112,17 @@ public final class RequestCaptureAgent {
     }
 
     private static AgentBuilder buildAgentBuilder() {
-        AgentBuilder servletBuilder = new AgentBuilder.Default()
+        AgentBuilder requestLifecycleBuilder = new AgentBuilder.Default()
             .ignore(ElementMatchers.nameStartsWith(BYTE_BUDDY_PACKAGE_PREFIX)
-                .or(ElementMatchers.nameStartsWith(AGENT_PACKAGE_PREFIX)))
+                .or(ElementMatchers.nameStartsWith(AGENT_PACKAGE_PREFIX)));
+
+        RequestCaptureConfig currentConfig = config();
+        AsyncEventWriter currentWriter = writer();
+        if (currentConfig != null && currentConfig.diagnosticTransforms()) {
+            requestLifecycleBuilder = requestLifecycleBuilder.with(new TransformationLoggingListener(currentWriter));
+        }
+
+        requestLifecycleBuilder = requestLifecycleBuilder
             .type(ElementMatchers.hasSuperType(ElementMatchers.named(SERVLET_CLASS))
                 .and(ElementMatchers.not(ElementMatchers.isInterface()))
                 .and(ElementMatchers.not(ElementMatchers.isAbstract())))
@@ -114,7 +130,15 @@ public final class RequestCaptureAgent {
                 builder.visit(Advice.to(ServletServiceAdvice.class)
                     .on(buildServletServiceMatcher())));
 
-        return servletBuilder
+        AgentBuilder filterBuilder = requestLifecycleBuilder
+            .type(ElementMatchers.hasSuperType(ElementMatchers.named(FILTER_CLASS))
+                .and(ElementMatchers.not(ElementMatchers.isInterface()))
+                .and(ElementMatchers.not(ElementMatchers.isAbstract())))
+            .transform((builder, typeDescription, classLoader, module, protectionDomain) ->
+                builder.visit(Advice.to(FilterDoFilterAdvice.class)
+                    .on(buildFilterDoFilterMatcher())));
+
+        return filterBuilder
             .type(ElementMatchers.named(SERVLET_INPUT_STREAM_CLASS))
             .transform((builder, typeDescription, classLoader, module, protectionDomain) ->
                 builder
@@ -146,6 +170,13 @@ public final class RequestCaptureAgent {
         return genericService.or(httpService);
     }
 
+    static ElementMatcher.Junction<MethodDescription> buildFilterDoFilterMatcher() {
+        return ElementMatchers.named("doFilter")
+            .and(ElementMatchers.takesArguments(3))
+            .and(ElementMatchers.takesArgument(0, ElementMatchers.named(SERVLET_REQUEST_CLASS)))
+            .and(ElementMatchers.takesArgument(1, ElementMatchers.named(SERVLET_RESPONSE_CLASS)));
+    }
+
     private static String buildInstalledEvent(RequestCaptureConfig config) {
         return "{\"timestamp\":\""
             + Instant.now().toString()
@@ -154,6 +185,40 @@ public final class RequestCaptureAgent {
             + "\",\"output\":"
             + CaptureContext.jsonQuote(config.outputFile().getAbsolutePath())
             + "}";
+    }
+
+    private static final class TransformationLoggingListener extends AgentBuilder.Listener.Adapter {
+        private final AsyncEventWriter writer;
+        private final Set<String> seenTypes = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+
+        private TransformationLoggingListener(AsyncEventWriter writer) {
+            this.writer = writer;
+        }
+
+        @Override
+        public void onTransformation(TypeDescription typeDescription,
+                                     ClassLoader classLoader,
+                                     JavaModule module,
+                                     boolean loaded,
+                                     DynamicType dynamicType) {
+            if (writer == null || typeDescription == null) {
+                return;
+            }
+            String typeName = typeDescription.getName();
+            if (seenTypes.add(typeName)) {
+                writer.enqueue(buildTransformationEvent(typeName));
+            }
+        }
+
+        private static String buildTransformationEvent(String typeName) {
+            return "{\"timestamp\":\""
+                + Instant.now().toString()
+                + "\",\"phase\":\""
+                + AGENT_TRANSFORM_PHASE
+                + "\",\"type\":"
+                + CaptureContext.jsonQuote(typeName)
+                + "}";
+        }
     }
 
     /**

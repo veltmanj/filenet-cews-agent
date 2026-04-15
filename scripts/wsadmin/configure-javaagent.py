@@ -1,4 +1,5 @@
 import sys
+import traceback
 
 
 def usage():
@@ -9,6 +10,12 @@ def normalize_path(value):
     if value is None:
         return ''
     return value.replace('\\', '/').lower()
+
+
+def normalize_jvm_args_value(value):
+    if value is None:
+        return ''
+    return value.replace('\\\\', '\\')
 
 
 def split_jvm_args(value):
@@ -82,7 +89,7 @@ def add_agent(cell, node, server, agent_spec):
         sys.exit(2)
 
     jvm_id = require_jvm(server_id)
-    current_args = AdminConfig.showAttribute(jvm_id, 'genericJvmArguments')
+    current_args = normalize_jvm_args_value(AdminConfig.showAttribute(jvm_id, 'genericJvmArguments'))
     current_tokens = split_jvm_args(current_args)
     agent_jar = extract_agent_jar(agent_spec)
     updated_tokens = remove_matching_javaagents(current_tokens, agent_jar)
@@ -106,7 +113,7 @@ def remove_agent(cell, node, server, agent_jar_path):
         sys.exit(2)
 
     jvm_id = require_jvm(server_id)
-    current_args = AdminConfig.showAttribute(jvm_id, 'genericJvmArguments')
+    current_args = normalize_jvm_args_value(AdminConfig.showAttribute(jvm_id, 'genericJvmArguments'))
     current_tokens = split_jvm_args(current_args)
     updated_tokens = remove_matching_javaagents(current_tokens, agent_jar_path)
     updated_args = join_jvm_args(updated_tokens)
@@ -121,20 +128,32 @@ def remove_agent(cell, node, server, agent_jar_path):
     print(updated_args)
 
 
-if len(sys.argv) != 5:
-    usage()
-    sys.exit(1)
+def main(argv):
+    if len(argv) != 5:
+        usage()
+        sys.exit(1)
 
-action = sys.argv[0]
-cell = sys.argv[1]
-node = sys.argv[2]
-server = sys.argv[3]
-value = sys.argv[4]
+    action = argv[0]
+    cell = argv[1]
+    node = argv[2]
+    server = argv[3]
+    value = argv[4]
 
-if action == 'add':
-    add_agent(cell, node, server, value)
-elif action == 'remove':
-    remove_agent(cell, node, server, value)
-else:
-    usage()
-    sys.exit(1)
+    if action == 'add':
+        add_agent(cell, node, server, value)
+    elif action == 'remove':
+        remove_agent(cell, node, server, value)
+    else:
+        usage()
+        sys.exit(1)
+
+
+try:
+    main(sys.argv)
+except SystemExit:
+    raise
+except:
+    print('wsadmin javaagent update failed.')
+    print('Arguments: %s' % list(sys.argv))
+    traceback.print_exc()
+    sys.exit(2)

@@ -52,4 +52,25 @@ class RequestCaptureConfigTest {
         assertTrue(config.metadataLight());
         assertEquals(512, config.maxBodyBytes());
     }
+
+    @Test
+    void enablesTransformDiagnosticsWhenRequested() {
+        RequestCaptureConfig config = RequestCaptureConfig.fromAgentArgs("diagnosticTransforms=true");
+
+        assertTrue(config.diagnosticTransforms());
+    }
+
+    @Test
+    void enablesTransformDiagnosticsByDefault() {
+        RequestCaptureConfig config = RequestCaptureConfig.fromAgentArgs(null);
+
+        assertTrue(config.diagnosticTransforms());
+    }
+
+    @Test
+    void allowsTransformDiagnosticsToBeDisabledExplicitly() {
+        RequestCaptureConfig config = RequestCaptureConfig.fromAgentArgs("diagnosticTransforms=false");
+
+        assertFalse(config.diagnosticTransforms());
+    }
 }

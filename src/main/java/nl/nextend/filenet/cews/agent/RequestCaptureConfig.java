@@ -39,6 +39,7 @@ final class RequestCaptureConfig {
     private final int maxBodyBytes;
     private final int queueCapacity;
     private final int sampleRate;
+    private final boolean diagnosticTransforms;
     private final EventMode eventMode;
     private final MetadataMode metadataMode;
     private final Set<String> includeHeaders;
@@ -55,6 +56,7 @@ final class RequestCaptureConfig {
         private int maxBodyBytes = DEFAULT_MAX_BODY_BYTES;
         private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
         private int sampleRate = DEFAULT_SAMPLE_RATE;
+        private boolean diagnosticTransforms = true;
         private EventMode eventMode = EventMode.START_AND_END;
         private MetadataMode metadataMode = MetadataMode.FULL;
         private String includeHeaders = DEFAULT_HEADERS;
@@ -87,6 +89,7 @@ final class RequestCaptureConfig {
         this.maxBodyBytes = builder.maxBodyBytes;
         this.queueCapacity = builder.queueCapacity;
         this.sampleRate = builder.sampleRate;
+        this.diagnosticTransforms = builder.diagnosticTransforms;
         this.eventMode = builder.eventMode;
         this.metadataMode = builder.metadataMode;
         this.includeHeaders = builder.parseSet(builder.includeHeaders);
@@ -155,6 +158,14 @@ final class RequestCaptureConfig {
      */
     int sampleRate() {
         return sampleRate;
+    }
+
+    /**
+     * Returns {@code true} if instrumentation-time class transformation events
+     * should be written to the agent output for diagnostics.
+     */
+    boolean diagnosticTransforms() {
+        return diagnosticTransforms;
     }
 
     /**
@@ -264,6 +275,8 @@ final class RequestCaptureConfig {
             builder.queueCapacity = parsePositiveInt(keyValue.value, builder.queueCapacity);
         } else if ("sampleRate".equalsIgnoreCase(keyValue.key)) {
             builder.sampleRate = Math.max(1, parsePositiveInt(keyValue.value, builder.sampleRate));
+        } else if ("diagnosticTransforms".equalsIgnoreCase(keyValue.key)) {
+            builder.diagnosticTransforms = Boolean.parseBoolean(keyValue.value);
         } else if ("eventMode".equalsIgnoreCase(keyValue.key)) {
             builder.eventMode = EventMode.parse(keyValue.value, builder.eventMode);
         } else if ("metadataMode".equalsIgnoreCase(keyValue.key)) {

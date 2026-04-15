@@ -10,7 +10,7 @@ CELL="$1"
 NODE="$2"
 SERVER="$3"
 AGENT_DIR="${4:-/opt/filenet-cews-agent}"
-AGENT_JAR="$AGENT_DIR/filenet-cews-agent-0.1.2.jar"
+AGENT_JAR="$AGENT_DIR/filenet-cews-agent-0.1.3.jar"
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 WSADMIN_CMD="${WSADMIN_CMD:-wsadmin.sh}"
 

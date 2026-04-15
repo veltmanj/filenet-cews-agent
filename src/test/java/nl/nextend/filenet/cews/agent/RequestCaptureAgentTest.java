@@ -77,6 +77,14 @@ class RequestCaptureAgentTest {
         assertTrue(event.contains(CaptureContext.jsonQuote(config.outputFile().getAbsolutePath())));
     }
 
+    @Test
+    void buildTransformationEventIncludesPhaseAndType() throws Exception {
+        String event = (String) buildTransformationEventMethod().invoke(null, "javax.servlet.http.HttpServlet");
+
+        assertTrue(event.contains("\"phase\":\"agent-transform\""));
+        assertTrue(event.contains("\"type\":\"javax.servlet.http.HttpServlet\""));
+    }
+
     /**
      * Verifies that the static accessors remain null-safe before the runtime has
      * been published.
@@ -103,6 +111,18 @@ class RequestCaptureAgentTest {
             TestServlet.class.getDeclaredMethod("notService", HttpServletRequest.class, HttpServletResponse.class))));
     }
 
+    @Test
+    void filterDoFilterMatcherCoversStandardFilterSignature() throws Exception {
+        @SuppressWarnings("unchecked")
+        net.bytebuddy.matcher.ElementMatcher<MethodDescription> matcher =
+            (net.bytebuddy.matcher.ElementMatcher<MethodDescription>) buildFilterDoFilterMatcherMethod().invoke(null);
+
+        assertTrue(matcher.matches(new MethodDescription.ForLoadedMethod(
+            TestFilter.class.getDeclaredMethod("doFilter", ServletRequest.class, ServletResponse.class, javax.servlet.FilterChain.class))));
+        assertTrue(!matcher.matches(new MethodDescription.ForLoadedMethod(
+            TestFilter.class.getDeclaredMethod("notDoFilter", ServletRequest.class, ServletResponse.class, javax.servlet.FilterChain.class))));
+    }
+
     @SuppressWarnings("unchecked")
     private static AtomicReference<Object> runtimeReference() throws Exception {
         Field runtimeField = RequestCaptureAgent.class.getDeclaredField("RUNTIME");
@@ -125,8 +145,21 @@ class RequestCaptureAgentTest {
         return method;
     }
 
+    private static Method buildTransformationEventMethod() throws Exception {
+        Class<?> listenerType = Class.forName("nl.nextend.filenet.cews.agent.RequestCaptureAgent$TransformationLoggingListener");
+        Method method = listenerType.getDeclaredMethod("buildTransformationEvent", String.class);
+        method.setAccessible(true);
+        return method;
+    }
+
     private static Method buildServletServiceMatcherMethod() throws Exception {
         Method method = RequestCaptureAgent.class.getDeclaredMethod("buildServletServiceMatcher");
+        method.setAccessible(true);
+        return method;
+    }
+
+    private static Method buildFilterDoFilterMatcherMethod() throws Exception {
+        Method method = RequestCaptureAgent.class.getDeclaredMethod("buildFilterDoFilterMatcher");
         method.setAccessible(true);
         return method;
     }
@@ -150,6 +183,21 @@ class RequestCaptureAgentTest {
         public void notService(HttpServletRequest request, HttpServletResponse response) {
             // Signature-only helper used to validate Byte Buddy matcher coverage.
             if (request == response) {
+                throw new IllegalStateException();
+            }
+        }
+    }
+
+    @SuppressWarnings("unused")
+    private static final class TestFilter {
+        public void doFilter(ServletRequest request, ServletResponse response, javax.servlet.FilterChain chain) {
+            if (request == response || chain == null) {
+                throw new IllegalStateException();
+            }
+        }
+
+        public void notDoFilter(ServletRequest request, ServletResponse response, javax.servlet.FilterChain chain) {
+            if (request == response || chain == null) {
                 throw new IllegalStateException();
             }
         }

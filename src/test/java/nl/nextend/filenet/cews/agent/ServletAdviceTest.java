@@ -157,6 +157,36 @@ class ServletAdviceTest {
         assertTrue(!lines.get(0).contains("\"phase\":\"start\""));
     }
 
+    @Test
+    void filterAdviceCapturesHttpRequestLifecycle() throws Exception {
+        Path outputFile = tempDir.resolve("advice-filter-capture.ndjson");
+        RequestCaptureConfig config = RequestCaptureConfig.fromAgentArgs(
+            "output=" + outputFile + ",includeUri=.*/FNCEWS.*"
+        );
+        AsyncEventWriter writer = new AsyncEventWriter(outputFile.toFile(), 8);
+        publishRuntime(config, writer);
+
+        HttpServletRequest request = httpRequest(
+            "/wsi/FNCEWS40MTOM/",
+            "POST",
+            null,
+            "10.0.0.4",
+            "application/soap+xml;charset=UTF-8",
+            0L,
+            headers("SOAPAction", "Create")
+        );
+        HttpServletResponse response = httpResponse(200);
+
+        FilterDoFilterAdvice.onEnter(request);
+        FilterDoFilterAdvice.onExit(response, null);
+        writer.close();
+
+        List<String> lines = Files.readAllLines(outputFile, StandardCharsets.UTF_8);
+        assertEquals(2, lines.size());
+        assertTrue(lines.get(0).contains("\"phase\":\"start\""));
+        assertTrue(lines.get(1).contains("\"phase\":\"end\""));
+    }
+
     @SuppressWarnings("unchecked")
     private static AtomicReference<Object> runtimeReference() throws Exception {
         Field runtimeField = RequestCaptureAgent.class.getDeclaredField("RUNTIME");
