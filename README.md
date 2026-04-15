@@ -18,6 +18,11 @@ This project builds a low-overhead Java instrumentation jar for observing inboun
 - Configurable URI filtering and body capture limits
 - Conservative defaults to reduce performance impact
 
+## Public Repository
+
+- Repository: https://github.com/veltmanj/filenet-cews-agent
+- Initial release: https://github.com/veltmanj/filenet-cews-agent/releases/tag/v0.1.0
+
 ## Build
 
 ```bash
