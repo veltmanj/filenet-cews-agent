@@ -137,6 +137,19 @@ Practical guidance:
 - Use `filenet-cews` when the lighter profile is not enough and you need headers plus request origin details for RCA.
 - Turn on body preview only for a short, targeted capture window on one failing CEWS endpoint.
 
+Windows WebSphere example:
+
+```text
+-javaagent:F:\path\to\filenet-cews-agent-0.1.0-SNAPSHOT.jar=profile=filenet-cews-low-overhead,output=F:/var/log/cews-capture.ndjson
+```
+
+Windows syntax notes:
+
+- Keep the jar path after `-javaagent:` as a normal Windows absolute path.
+- Prefer a jar path without spaces if possible.
+- The `output=` value can safely use forward slashes on Windows.
+- Make sure the WebSphere service account can read the jar and write the output file path.
+
 ## Agent arguments
 
 Arguments are comma-separated key/value pairs:
