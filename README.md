@@ -22,6 +22,53 @@ This project builds a low-overhead Java instrumentation jar for observing inboun
 
 - Latest release: [filenet-cews-agent releases](https://github.com/veltmanj/filenet-cews-agent/releases/latest)
 
+## GitHub Packages
+
+The Maven coordinates for the published package are:
+
+```text
+nl.nextend.filenet.cews:filenet-cews-agent:0.1.2
+```
+
+To publish future versions to GitHub Packages with the permanent Maven configuration now in `pom.xml`, add a `github` server entry to your Maven settings and run `deploy`.
+
+Example `~/.m2/settings.xml` entry:
+
+```xml
+<servers>
+<server>
+<id>github</id>
+<username>YOUR_GITHUB_USERNAME</username>
+<password>YOUR_GITHUB_TOKEN</password>
+</server>
+</servers>
+```
+
+Then publish with:
+
+```bash
+./mvnw -q -DskipTests deploy
+```
+
+To consume the package from another Maven project, add the GitHub Packages repository and the dependency.
+
+```xml
+<repositories>
+<repository>
+<id>github-filenet-cews-agent</id>
+<url>https://maven.pkg.github.com/veltmanj/filenet-cews-agent</url>
+</repository>
+</repositories>
+```
+
+```xml
+<dependency>
+<groupId>nl.nextend.filenet.cews</groupId>
+<artifactId>filenet-cews-agent</artifactId>
+<version>0.1.2</version>
+</dependency>
+```
+
 ## Build
 
 ```bash

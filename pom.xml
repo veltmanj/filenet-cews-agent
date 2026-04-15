@@ -9,6 +9,14 @@
     <name>filenet-cews-agent</name>
     <description>Low-overhead javaagent for observing inbound servlet requests.</description>
 
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/veltmanj/filenet-cews-agent</url>
+        </repository>
+    </distributionManagement>
+
     <properties>
         <maven.compiler.release>8</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
