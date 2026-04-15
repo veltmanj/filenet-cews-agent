@@ -8,10 +8,12 @@ import javax.servlet.http.HttpServletResponse;
 import net.bytebuddy.asm.Advice;
 
 /**
- * Byte Buddy advice attached to {@code HttpServlet.service(...)}.
+ * Byte Buddy advice attached to servlet {@code service(...)} methods.
  *
  * <p>This advice marks the beginning and end of the high-level servlet request so
- * the agent can create and later flush the per-request {@link CaptureContext}.</p>
+ * the agent can create and later flush the per-request {@link CaptureContext}.
+ * The hook is intentionally written against generic servlet method signatures so
+ * container-specific wrapper implementations can still be observed.</p>
  */
 public final class ServletServiceAdvice {
     private ServletServiceAdvice() {

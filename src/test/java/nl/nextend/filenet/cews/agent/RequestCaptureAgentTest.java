@@ -11,9 +11,16 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import net.bytebuddy.description.method.MethodDescription;
 
 /**
  * Tests for the high-level agent runtime publication helpers in
@@ -82,6 +89,20 @@ class RequestCaptureAgentTest {
         assertNull(RequestCaptureAgent.writer());
     }
 
+    @Test
+    void servletServiceMatcherCoversGenericAndHttpOverloads() throws Exception {
+        @SuppressWarnings("unchecked")
+        net.bytebuddy.matcher.ElementMatcher<MethodDescription> matcher =
+            (net.bytebuddy.matcher.ElementMatcher<MethodDescription>) buildServletServiceMatcherMethod().invoke(null);
+
+        assertTrue(matcher.matches(new MethodDescription.ForLoadedMethod(
+            TestServlet.class.getDeclaredMethod("service", ServletRequest.class, ServletResponse.class))));
+        assertTrue(matcher.matches(new MethodDescription.ForLoadedMethod(
+            TestServlet.class.getDeclaredMethod("service", HttpServletRequest.class, HttpServletResponse.class))));
+        assertTrue(!matcher.matches(new MethodDescription.ForLoadedMethod(
+            TestServlet.class.getDeclaredMethod("notService", HttpServletRequest.class, HttpServletResponse.class))));
+    }
+
     @SuppressWarnings("unchecked")
     private static AtomicReference<Object> runtimeReference() throws Exception {
         Field runtimeField = RequestCaptureAgent.class.getDeclaredField("RUNTIME");
@@ -102,5 +123,35 @@ class RequestCaptureAgentTest {
         Method method = RequestCaptureAgent.class.getDeclaredMethod("buildInstalledEvent", RequestCaptureConfig.class);
         method.setAccessible(true);
         return method;
+    }
+
+    private static Method buildServletServiceMatcherMethod() throws Exception {
+        Method method = RequestCaptureAgent.class.getDeclaredMethod("buildServletServiceMatcher");
+        method.setAccessible(true);
+        return method;
+    }
+
+    @SuppressWarnings("unused")
+    private static final class TestServlet {
+        public void service(ServletRequest request, ServletResponse response) {
+            // Signature-only helper used to validate Byte Buddy matcher coverage.
+            if (request == response) {
+                throw new IllegalStateException();
+            }
+        }
+
+        protected void service(HttpServletRequest request, HttpServletResponse response) {
+            // Signature-only helper used to validate Byte Buddy matcher coverage.
+            if (request == response) {
+                throw new IllegalStateException();
+            }
+        }
+
+        public void notService(HttpServletRequest request, HttpServletResponse response) {
+            // Signature-only helper used to validate Byte Buddy matcher coverage.
+            if (request == response) {
+                throw new IllegalStateException();
+            }
+        }
     }
 }

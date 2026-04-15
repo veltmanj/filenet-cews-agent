@@ -6,6 +6,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
+import net.bytebuddy.description.method.MethodDescription;
+import net.bytebuddy.matcher.ElementMatcher;
 import net.bytebuddy.matcher.ElementMatchers;
 
 /**
@@ -21,10 +23,12 @@ import net.bytebuddy.matcher.ElementMatchers;
 public final class RequestCaptureAgent {
     private static final String AGENT_PACKAGE_PREFIX = "nl.nextend.filenet.cews.agent.";
     private static final String BYTE_BUDDY_PACKAGE_PREFIX = "net.bytebuddy.";
-    private static final String HTTP_SERVLET_CLASS = "javax.servlet.http.HttpServlet";
+    private static final String SERVLET_CLASS = "javax.servlet.Servlet";
     private static final String SERVLET_INPUT_STREAM_CLASS = "javax.servlet.ServletInputStream";
     private static final String SERVLET_REQUEST_CLASS = "javax.servlet.ServletRequest";
     private static final String SERVLET_RESPONSE_CLASS = "javax.servlet.ServletResponse";
+    private static final String HTTP_SERVLET_REQUEST_CLASS = "javax.servlet.http.HttpServletRequest";
+    private static final String HTTP_SERVLET_RESPONSE_CLASS = "javax.servlet.http.HttpServletResponse";
     private static final String AGENT_INSTALLED_PHASE = "agent-installed";
 
     private static final AtomicReference<AgentRuntime> RUNTIME = new AtomicReference<>();
@@ -103,13 +107,12 @@ public final class RequestCaptureAgent {
         AgentBuilder servletBuilder = new AgentBuilder.Default()
             .ignore(ElementMatchers.nameStartsWith(BYTE_BUDDY_PACKAGE_PREFIX)
                 .or(ElementMatchers.nameStartsWith(AGENT_PACKAGE_PREFIX)))
-            .type(ElementMatchers.named(HTTP_SERVLET_CLASS))
+            .type(ElementMatchers.hasSuperType(ElementMatchers.named(SERVLET_CLASS))
+                .and(ElementMatchers.not(ElementMatchers.isInterface()))
+                .and(ElementMatchers.not(ElementMatchers.isAbstract())))
             .transform((builder, typeDescription, classLoader, module, protectionDomain) ->
                 builder.visit(Advice.to(ServletServiceAdvice.class)
-                    .on(ElementMatchers.named("service")
-                        .and(ElementMatchers.takesArguments(2))
-                        .and(ElementMatchers.takesArgument(0, ElementMatchers.named(SERVLET_REQUEST_CLASS)))
-                        .and(ElementMatchers.takesArgument(1, ElementMatchers.named(SERVLET_RESPONSE_CLASS))))));
+                    .on(buildServletServiceMatcher())));
 
         return servletBuilder
             .type(ElementMatchers.named(SERVLET_INPUT_STREAM_CLASS))
@@ -127,6 +130,20 @@ public final class RequestCaptureAgent {
                         .on(ElementMatchers.named("read")
                             .and(ElementMatchers.takesArguments(byte[].class, int.class, int.class))
                             .and(ElementMatchers.returns(int.class)))));
+    }
+
+    static ElementMatcher.Junction<MethodDescription> buildServletServiceMatcher() {
+        ElementMatcher.Junction<MethodDescription> genericService = ElementMatchers.named("service")
+            .and(ElementMatchers.takesArguments(2))
+            .and(ElementMatchers.takesArgument(0, ElementMatchers.named(SERVLET_REQUEST_CLASS)))
+            .and(ElementMatchers.takesArgument(1, ElementMatchers.named(SERVLET_RESPONSE_CLASS)));
+
+        ElementMatcher.Junction<MethodDescription> httpService = ElementMatchers.named("service")
+            .and(ElementMatchers.takesArguments(2))
+            .and(ElementMatchers.takesArgument(0, ElementMatchers.named(HTTP_SERVLET_REQUEST_CLASS)))
+            .and(ElementMatchers.takesArgument(1, ElementMatchers.named(HTTP_SERVLET_RESPONSE_CLASS)));
+
+        return genericService.or(httpService);
     }
 
     private static String buildInstalledEvent(RequestCaptureConfig config) {
