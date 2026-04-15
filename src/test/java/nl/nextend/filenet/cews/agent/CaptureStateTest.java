@@ -208,6 +208,36 @@ class CaptureStateTest {
         assertFalse(lines.get(0).contains("remoteAddr"));
     }
 
+    @Test
+    void nestedServletEntryDoesNotDuplicateCaptureLifecycle() throws IOException {
+        Path outputFile = tempDir.resolve("capture-nested.ndjson");
+        AsyncEventWriter writer = new AsyncEventWriter(outputFile.toFile(), 8);
+        RequestCaptureConfig config = RequestCaptureConfig.fromAgentArgs(
+            "output=" + outputFile + ",includeUri=.*/FNCEWS.*"
+        );
+
+        HttpServletRequest request = request(
+            "/wsi/FNCEWS40MTOM/",
+            "POST",
+            null,
+            "10.0.0.6",
+            "text/xml",
+            0L,
+            headers("SOAPAction", "Create")
+        );
+
+        CaptureState.begin(request, config, writer);
+        CaptureState.begin(request, config, writer);
+        CaptureState.end(response(200), null, writer);
+        CaptureState.end(response(200), null, writer);
+        writer.close();
+
+        List<String> lines = Files.readAllLines(outputFile, StandardCharsets.UTF_8);
+        assertEquals(2, lines.size());
+        assertTrue(lines.get(0).contains("\"phase\":\"start\""));
+        assertTrue(lines.get(1).contains("\"phase\":\"end\""));
+    }
+
     private static HttpServletRequest request(String uri,
                                               String method,
                                               String query,

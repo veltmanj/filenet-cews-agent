@@ -33,6 +33,9 @@ final class CaptureState {
         if (!canBeginCapture(request, config, writer)) {
             return;
         }
+        if (CURRENT.get() != null) {
+            return;
+        }
         String uri = request.getRequestURI();
         if (!config.matchesUri(uri) || !shouldCaptureSample(config)) {
             return;
