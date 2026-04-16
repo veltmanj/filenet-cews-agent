@@ -5,7 +5,7 @@
 
     <groupId>nl.nextend.filenet.cews</groupId>
     <artifactId>filenet-cews-agent</artifactId>
-    <version>0.1.3</version>
+    <version>0.1.4</version>
     <name>filenet-cews-agent</name>
     <description>Low-overhead javaagent for observing inbound servlet requests.</description>
 

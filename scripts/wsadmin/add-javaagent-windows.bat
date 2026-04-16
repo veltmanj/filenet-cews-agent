@@ -12,7 +12,7 @@ set "SERVER=%~3"
 set "AGENT_DIR=%~4"
 if "%AGENT_DIR%"=="" set "AGENT_DIR=C:\IBM\Agent\filenet-cews-agent"
 
-set "AGENT_JAR=%AGENT_DIR%\filenet-cews-agent-0.1.3.jar"
+set "AGENT_JAR=%AGENT_DIR%\filenet-cews-agent-0.1.4.jar"
 set "AGENT_JAR=%AGENT_JAR:\=/%"
 set "OUTPUT_FILE=%AGENT_DIR%\cews-capture.ndjson"
 set "OUTPUT_FILE=%OUTPUT_FILE:\=/%"

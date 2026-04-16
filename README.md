@@ -27,7 +27,7 @@ This project builds a low-overhead Java instrumentation jar for observing inboun
 The Maven coordinates for the published package are:
 
 ```text
-nl.nextend.filenet.cews:filenet-cews-agent:0.1.3
+nl.nextend.filenet.cews:filenet-cews-agent:0.1.4
 ```
 
 To publish future versions to GitHub Packages with the permanent Maven configuration now in `pom.xml`, add a `github` server entry to your Maven settings and run `deploy`.
@@ -65,7 +65,7 @@ To consume the package from another Maven project, add the GitHub Packages repos
 <dependency>
 <groupId>nl.nextend.filenet.cews</groupId>
 <artifactId>filenet-cews-agent</artifactId>
-<version>0.1.3</version>
+<version>0.1.4</version>
 </dependency>
 ```
 
@@ -77,7 +77,7 @@ To consume the package from another Maven project, add the GitHub Packages repos
 
 The wrapper is pinned to Maven 3.9.14, so the project builds consistently even if the local `mvn` on `PATH` is older. On first run, `./mvnw` downloads that Maven distribution.
 
-The shaded agent jar is written to `target/filenet-cews-agent-0.1.3.jar`.
+The shaded agent jar is written to `target/filenet-cews-agent-0.1.4.jar`.
 
 ## Testing
 
@@ -134,25 +134,25 @@ This is still an approximation. It measures the core agent path in-process and i
 ## Attach to a JVM
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.3.jar=output=/var/log/request-capture.ndjson,includeUri=.*/wsi/.*,maxBodyBytes=4096
+-javaagent:/path/to/filenet-cews-agent-0.1.4.jar=output=/var/log/request-capture.ndjson,includeUri=.*/wsi/.*,maxBodyBytes=4096
 ```
 
 Recommended FileNet CEWS low-overhead production candidate profile:
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.3.jar=profile=filenet-cews-low-overhead,output=/var/log/cews-capture.ndjson
+-javaagent:/path/to/filenet-cews-agent-0.1.4.jar=profile=filenet-cews-low-overhead,output=/var/log/cews-capture.ndjson
 ```
 
 Alternate FileNet CEWS headers-only diagnostic profile:
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.3.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson
+-javaagent:/path/to/filenet-cews-agent-0.1.4.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson
 ```
 
 Recommended FileNet CEWS targeted body preview profile:
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.3.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson,captureBody=true,maxBodyBytes=2048
+-javaagent:/path/to/filenet-cews-agent-0.1.4.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson,captureBody=true,maxBodyBytes=2048
 ```
 
 ## Recommended WebSphere Settings
@@ -162,13 +162,13 @@ Add one of the following strings to the WebSphere JVM Generic JVM arguments for 
 Best throughput / lowest overhead:
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.3.jar=profile=filenet-cews-low-overhead,output=/var/log/cews-capture.ndjson
+-javaagent:/path/to/filenet-cews-agent-0.1.4.jar=profile=filenet-cews-low-overhead,output=/var/log/cews-capture.ndjson
 ```
 
 Balanced throughput versus information gathering:
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.3.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson
+-javaagent:/path/to/filenet-cews-agent-0.1.4.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson
 ```
 
 What each one gathers:
@@ -187,7 +187,7 @@ Practical guidance:
 Windows WebSphere example:
 
 ```text
--javaagent:F:\path\to\filenet-cews-agent-0.1.3.jar=profile=filenet-cews-low-overhead,output=F:/var/log/cews-capture.ndjson
+-javaagent:F:\path\to\filenet-cews-agent-0.1.4.jar=profile=filenet-cews-low-overhead,output=F:/var/log/cews-capture.ndjson
 ```
 
 Windows syntax notes:
@@ -252,7 +252,7 @@ Wrapper defaults:
 - Linux defaults `agent_dir` to `/opt/filenet-cews-agent`
 - Windows defaults `agent_dir` to `C:\IBM\Agent\filenet-cews-agent`
 - The add wrappers apply `profile=filenet-cews-low-overhead` and write output to `cews-capture.ndjson` in the same directory as the jar
-- The remove wrappers remove the javaagent entry for `filenet-cews-agent-0.1.3.jar`
+- The remove wrappers remove the javaagent entry for `filenet-cews-agent-0.1.4.jar`
 
 After running add or remove, restart the target WebSphere server so the JVM arguments take effect.
 
@@ -269,7 +269,7 @@ Arguments are comma-separated key/value pairs:
 - `maxBodyBytes`: maximum number of request-body bytes to retain per request
 - `queueCapacity`: async writer queue size
 - `sampleRate`: capture 1 out of N matching requests
-- `diagnosticTransforms`: `true` or `false`. Defaults to `true` in `0.1.3` so startup writes `agent-transform` events for each transformed servlet/filter/input-stream class; set it to `false` after diagnostics are no longer needed.
+- `diagnosticTransforms`: `true` or `false`. Defaults to `true` in `0.1.4` so startup writes `agent-transform` events for each transformed servlet/filter/input-stream class; set it to `false` after diagnostics are no longer needed.
 - `includeHeaders`: `|` separated list of headers to include. Empty means include all.
 - `redactHeaders`: `|` separated list of headers to redact
 - `bodyContentTypes`: `|` separated list of content types allowed for body preview. Supports exact match, prefix match via `text/*`, and suffix wildcards like `*/xml`.
@@ -308,6 +308,7 @@ Explicit arguments still win over the profile defaults, so you can override `eve
 ## Notes for WebSphere / FileNet RCA
 
 - Start with `profile=filenet-cews-low-overhead` and a narrow `includeUri` filter.
+- The startup `agent-installed` event now includes `retransformSupported` so you can tell whether the JVM can instrument already-loaded servlet and filter classes.
 - Enable body preview only for the failing CEWS endpoint and keep `maxBodyBytes` small.
 - Use `profile=filenet-cews` only for short, targeted diagnostic windows when the lighter profile is not enough.
 - The agent logs a start event immediately so requests that later stall can still be correlated.
