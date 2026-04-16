@@ -6,9 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
+import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.servlet.ServletRequest;
@@ -71,10 +73,11 @@ class RequestCaptureAgentTest {
         RequestCaptureConfig config = RequestCaptureConfig.fromAgentArgs(
             "output=" + new File(tempDir, "agent-installed.ndjson").getAbsolutePath());
 
-        String event = (String) buildInstalledEventMethod().invoke(null, config);
+        String event = (String) buildInstalledEventMethod().invoke(null, config, instrumentation(true));
 
         assertTrue(event.contains("\"phase\":\"agent-installed\""));
         assertTrue(event.contains(CaptureContext.jsonQuote(config.outputFile().getAbsolutePath())));
+        assertTrue(event.contains("\"retransformSupported\":true"));
     }
 
     @Test
@@ -123,6 +126,12 @@ class RequestCaptureAgentTest {
             TestFilter.class.getDeclaredMethod("notDoFilter", ServletRequest.class, ServletResponse.class, javax.servlet.FilterChain.class))));
     }
 
+    @Test
+    void retransformationIsEnabledWhenInstrumentationSupportsIt() throws Exception {
+        assertTrue((Boolean) shouldUseRetransformationMethod().invoke(null, instrumentation(true)));
+        assertTrue(!(Boolean) shouldUseRetransformationMethod().invoke(null, instrumentation(false)));
+    }
+
     @SuppressWarnings("unchecked")
     private static AtomicReference<Object> runtimeReference() throws Exception {
         Field runtimeField = RequestCaptureAgent.class.getDeclaredField("RUNTIME");
@@ -140,7 +149,14 @@ class RequestCaptureAgentTest {
     }
 
     private static Method buildInstalledEventMethod() throws Exception {
-        Method method = RequestCaptureAgent.class.getDeclaredMethod("buildInstalledEvent", RequestCaptureConfig.class);
+        Method method = RequestCaptureAgent.class.getDeclaredMethod("buildInstalledEvent", RequestCaptureConfig.class,
+            Instrumentation.class);
+        method.setAccessible(true);
+        return method;
+    }
+
+    private static Method shouldUseRetransformationMethod() throws Exception {
+        Method method = RequestCaptureAgent.class.getDeclaredMethod("shouldUseRetransformation", Instrumentation.class);
         method.setAccessible(true);
         return method;
     }
@@ -162,6 +178,43 @@ class RequestCaptureAgentTest {
         Method method = RequestCaptureAgent.class.getDeclaredMethod("buildFilterDoFilterMatcher");
         method.setAccessible(true);
         return method;
+    }
+
+    private static Instrumentation instrumentation(boolean retransformSupported) {
+        return (Instrumentation) Proxy.newProxyInstance(
+            RequestCaptureAgentTest.class.getClassLoader(),
+            new Class<?>[] {Instrumentation.class},
+            (proxy, method, args) -> {
+                if ("isRetransformClassesSupported".equals(method.getName())) {
+                    return retransformSupported;
+                }
+                Class<?> returnType = method.getReturnType();
+                if (boolean.class.equals(returnType)) {
+                    return false;
+                }
+                if (byte.class.equals(returnType)) {
+                    return (byte) 0;
+                }
+                if (short.class.equals(returnType)) {
+                    return (short) 0;
+                }
+                if (int.class.equals(returnType)) {
+                    return 0;
+                }
+                if (long.class.equals(returnType)) {
+                    return 0L;
+                }
+                if (float.class.equals(returnType)) {
+                    return 0F;
+                }
+                if (double.class.equals(returnType)) {
+                    return 0D;
+                }
+                if (char.class.equals(returnType)) {
+                    return (char) 0;
+                }
+                return null;
+            });
     }
 
     @SuppressWarnings("unused")

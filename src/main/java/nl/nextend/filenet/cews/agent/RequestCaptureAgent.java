@@ -97,8 +97,8 @@ public final class RequestCaptureAgent {
         RUNTIME.set(runtime);
         Runtime.getRuntime().addShutdownHook(new Thread(runtime.writer::close, "request-capture-shutdown"));
 
-        buildAgentBuilder().installOn(instrumentation);
-        runtime.writer.enqueue(buildInstalledEvent(runtime.config));
+        buildAgentBuilder(instrumentation).installOn(instrumentation);
+        runtime.writer.enqueue(buildInstalledEvent(runtime.config, instrumentation));
     }
 
     private static AgentRuntime runtime() {
@@ -111,10 +111,14 @@ public final class RequestCaptureAgent {
         return new AgentRuntime(config, writer);
     }
 
-    private static AgentBuilder buildAgentBuilder() {
+    private static AgentBuilder buildAgentBuilder(Instrumentation instrumentation) {
         AgentBuilder requestLifecycleBuilder = new AgentBuilder.Default()
             .ignore(ElementMatchers.nameStartsWith(BYTE_BUDDY_PACKAGE_PREFIX)
                 .or(ElementMatchers.nameStartsWith(AGENT_PACKAGE_PREFIX)));
+
+        if (shouldUseRetransformation(instrumentation)) {
+            requestLifecycleBuilder = requestLifecycleBuilder.with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION);
+        }
 
         RequestCaptureConfig currentConfig = config();
         AsyncEventWriter currentWriter = writer();
@@ -177,13 +181,19 @@ public final class RequestCaptureAgent {
             .and(ElementMatchers.takesArgument(1, ElementMatchers.named(SERVLET_RESPONSE_CLASS)));
     }
 
-    private static String buildInstalledEvent(RequestCaptureConfig config) {
+    static boolean shouldUseRetransformation(Instrumentation instrumentation) {
+        return instrumentation != null && instrumentation.isRetransformClassesSupported();
+    }
+
+    private static String buildInstalledEvent(RequestCaptureConfig config, Instrumentation instrumentation) {
         return "{\"timestamp\":\""
             + Instant.now().toString()
             + "\",\"phase\":\""
             + AGENT_INSTALLED_PHASE
             + "\",\"output\":"
             + CaptureContext.jsonQuote(config.outputFile().getAbsolutePath())
+            + ",\"retransformSupported\":"
+            + shouldUseRetransformation(instrumentation)
             + "}";
     }
 
