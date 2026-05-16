@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
  * A small profile system is supported so operators can enable a CEWS-specific
  * baseline and then override selected fields with explicit arguments.</p>
  */
-final class RequestCaptureConfig {
+public final class RequestCaptureConfig {
     private static final String DEFAULT_OUTPUT = "request-capture.ndjson";
     private static final String DEFAULT_INCLUDE_URI = ".*";
     private static final int DEFAULT_MAX_BODY_BYTES = 4096;
@@ -40,6 +40,7 @@ final class RequestCaptureConfig {
     private final int queueCapacity;
     private final int sampleRate;
     private final boolean diagnosticTransforms;
+    private final Set<String> probeTypes;
     private final EventMode eventMode;
     private final MetadataMode metadataMode;
     private final Set<String> includeHeaders;
@@ -57,6 +58,7 @@ final class RequestCaptureConfig {
         private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
         private int sampleRate = DEFAULT_SAMPLE_RATE;
         private boolean diagnosticTransforms = true;
+        private String probeTypes = "";
         private EventMode eventMode = EventMode.START_AND_END;
         private MetadataMode metadataMode = MetadataMode.FULL;
         private String includeHeaders = DEFAULT_HEADERS;
@@ -80,6 +82,18 @@ final class RequestCaptureConfig {
                 .forEach(values::add);
             return values;
         }
+
+        private Set<String> parseRawSet(String value) {
+            if (value == null || value.trim().isEmpty()) {
+                return Collections.emptySet();
+            }
+            Set<String> values = new LinkedHashSet<>();
+            Arrays.stream(value.split("\\|"))
+                .map(String::trim)
+                .filter(part -> !part.isEmpty())
+                .forEach(values::add);
+            return values;
+        }
     }
 
     private RequestCaptureConfig(Builder builder) {
@@ -90,6 +104,7 @@ final class RequestCaptureConfig {
         this.queueCapacity = builder.queueCapacity;
         this.sampleRate = builder.sampleRate;
         this.diagnosticTransforms = builder.diagnosticTransforms;
+        this.probeTypes = builder.parseRawSet(builder.probeTypes);
         this.eventMode = builder.eventMode;
         this.metadataMode = builder.metadataMode;
         this.includeHeaders = builder.parseSet(builder.includeHeaders);
@@ -164,8 +179,12 @@ final class RequestCaptureConfig {
      * Returns {@code true} if instrumentation-time class transformation events
      * should be written to the agent output for diagnostics.
      */
-    boolean diagnosticTransforms() {
+    public boolean diagnosticTransforms() {
         return diagnosticTransforms;
+    }
+
+    Set<String> probeTypes() {
+        return probeTypes;
     }
 
     /**
@@ -277,6 +296,8 @@ final class RequestCaptureConfig {
             builder.sampleRate = Math.max(1, parsePositiveInt(keyValue.value, builder.sampleRate));
         } else if ("diagnosticTransforms".equalsIgnoreCase(keyValue.key)) {
             builder.diagnosticTransforms = Boolean.parseBoolean(keyValue.value);
+        } else if ("probeTypes".equalsIgnoreCase(keyValue.key)) {
+            builder.probeTypes = keyValue.value;
         } else if ("eventMode".equalsIgnoreCase(keyValue.key)) {
             builder.eventMode = EventMode.parse(keyValue.value, builder.eventMode);
         } else if ("metadataMode".equalsIgnoreCase(keyValue.key)) {

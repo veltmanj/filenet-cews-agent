@@ -17,7 +17,12 @@ import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
+import javax.servlet.AsyncContext;
+import javax.servlet.AsyncEvent;
+import javax.servlet.AsyncListener;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -238,6 +243,42 @@ class CaptureStateTest {
         assertTrue(lines.get(1).contains("\"phase\":\"end\""));
     }
 
+    @Test
+    void asyncCompletionDefersEndEventUntilAsyncListenerCompletes() throws Exception {
+        Path outputFile = tempDir.resolve("capture-async.ndjson");
+        AsyncEventWriter writer = new AsyncEventWriter(outputFile.toFile(), 8);
+        RequestCaptureConfig config = RequestCaptureConfig.fromAgentArgs(
+            "output=" + outputFile + ",includeUri=.*/FNCEWS.*"
+        );
+
+        AsyncRequest asyncRequest = asyncRequest(
+            "/wsi/FNCEWS40MTOM/",
+            "POST",
+            null,
+            "10.0.0.7",
+            "text/xml",
+            6L,
+            headers("SOAPAction", "Create")
+        );
+        HttpServletResponse response = response(202);
+
+        CaptureState.begin(asyncRequest.request, config, writer);
+        CaptureState.onRead("abcdef".getBytes(StandardCharsets.UTF_8), 0, 6);
+        CaptureState.end(asyncRequest.request, response, null, writer);
+
+        List<String> beforeComplete = awaitLineCount(outputFile, 1);
+        assertEquals(1, beforeComplete.size());
+        assertTrue(beforeComplete.get(0).contains("\"phase\":\"start\""));
+
+        asyncRequest.complete(response, null);
+        writer.close();
+
+        List<String> lines = awaitLineCount(outputFile, 2);
+        assertEquals(2, lines.size());
+        assertTrue(lines.get(1).contains("\"phase\":\"end\""));
+        assertTrue(lines.get(1).contains("\"responseStatus\":202"));
+    }
+
     private static HttpServletRequest request(String uri,
                                               String method,
                                               String query,
@@ -245,6 +286,18 @@ class CaptureStateTest {
                                               String contentType,
                                               long contentLength,
                                               Map<String, String> headers) {
+        return request(uri, method, query, remoteAddr, contentType, contentLength, headers, null);
+    }
+
+    private static HttpServletRequest request(String uri,
+                                              String method,
+                                              String query,
+                                              String remoteAddr,
+                                              String contentType,
+                                              long contentLength,
+                                              Map<String, String> headers,
+                                              AsyncController asyncController) {
+        Map<String, Object> attributes = new LinkedHashMap<>();
         return proxy(HttpServletRequest.class, (proxy, invokedMethod, args) -> {
             String name = invokedMethod.getName();
             if ("getRequestURI".equals(name)) {
@@ -271,8 +324,38 @@ class CaptureStateTest {
             if ("getHeader".equals(name)) {
                 return headers.get(args[0]);
             }
+            if ("getAttribute".equals(name)) {
+                return attributes.get(args[0]);
+            }
+            if ("setAttribute".equals(name)) {
+                attributes.put((String) args[0], args[1]);
+                return null;
+            }
+            if ("removeAttribute".equals(name)) {
+                attributes.remove(args[0]);
+                return null;
+            }
+            if ("isAsyncStarted".equals(name)) {
+                return asyncController != null && asyncController.started;
+            }
+            if ("getAsyncContext".equals(name)) {
+                return asyncController == null ? null : asyncController.asyncContext;
+            }
             return defaultValue(invokedMethod);
         });
+    }
+
+    private static AsyncRequest asyncRequest(String uri,
+                                             String method,
+                                             String query,
+                                             String remoteAddr,
+                                             String contentType,
+                                             long contentLength,
+                                             Map<String, String> headers) {
+        AsyncController asyncController = new AsyncController();
+        HttpServletRequest request = request(uri, method, query, remoteAddr, contentType, contentLength, headers, asyncController);
+        asyncController.request = request;
+        return new AsyncRequest(request, asyncController);
     }
 
     private static HttpServletResponse response(int status) {
@@ -335,5 +418,61 @@ class CaptureStateTest {
             return '\0';
         }
         throw new IllegalStateException("Unsupported primitive return type: " + returnType);
+    }
+
+    private static List<String> readLinesIfPresent(Path outputFile) throws IOException {
+        return Files.exists(outputFile)
+            ? Files.readAllLines(outputFile, StandardCharsets.UTF_8)
+            : Collections.<String>emptyList();
+    }
+
+    private static List<String> awaitLineCount(Path outputFile, int expectedLineCount) throws IOException {
+        for (int attempt = 0; attempt < 40; attempt++) {
+            List<String> lines = readLinesIfPresent(outputFile);
+            if (lines.size() == expectedLineCount) {
+                return lines;
+            }
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(25L));
+        }
+        return readLinesIfPresent(outputFile);
+    }
+
+    private static final class AsyncRequest {
+        private final HttpServletRequest request;
+        private final AsyncController controller;
+
+        private AsyncRequest(HttpServletRequest request, AsyncController controller) {
+            this.request = request;
+            this.controller = controller;
+        }
+
+        private void complete(HttpServletResponse response, Throwable throwable) throws Exception {
+            controller.complete(response, throwable);
+        }
+    }
+
+    private static final class AsyncController {
+        private final AsyncContext asyncContext;
+
+        private HttpServletRequest request;
+        private AsyncListener listener;
+        private boolean started = true;
+
+        private AsyncController() {
+            this.asyncContext = proxy(AsyncContext.class, (proxy, invokedMethod, args) -> {
+                if ("addListener".equals(invokedMethod.getName())) {
+                    listener = (AsyncListener) args[0];
+                    return null;
+                }
+                return defaultValue(invokedMethod);
+            });
+        }
+
+        private void complete(HttpServletResponse response, Throwable throwable) throws Exception {
+            started = false;
+            if (listener != null) {
+                listener.onComplete(new AsyncEvent(asyncContext, request, response, throwable));
+            }
+        }
     }
 }

@@ -27,7 +27,7 @@ This project builds a low-overhead Java instrumentation jar for observing inboun
 The Maven coordinates for the published package are:
 
 ```text
-nl.nextend.filenet.cews:filenet-cews-agent:0.1.4
+nl.nextend.filenet.cews:filenet-cews-agent:0.1.5
 ```
 
 To publish future versions to GitHub Packages with the permanent Maven configuration now in `pom.xml`, add a `github` server entry to your Maven settings and run `deploy`.
@@ -65,7 +65,7 @@ To consume the package from another Maven project, add the GitHub Packages repos
 <dependency>
 <groupId>nl.nextend.filenet.cews</groupId>
 <artifactId>filenet-cews-agent</artifactId>
-<version>0.1.4</version>
+<version>0.1.5</version>
 </dependency>
 ```
 
@@ -77,7 +77,7 @@ To consume the package from another Maven project, add the GitHub Packages repos
 
 The wrapper is pinned to Maven 3.9.14, so the project builds consistently even if the local `mvn` on `PATH` is older. On first run, `./mvnw` downloads that Maven distribution.
 
-The shaded agent jar is written to `target/filenet-cews-agent-0.1.4.jar`.
+The shaded agent jar is written to `target/filenet-cews-agent-0.1.5.jar`.
 
 ## Testing
 
@@ -96,7 +96,73 @@ The test suite is intentionally focused on the failure-prone areas of the agent:
 - async writer flushing, shutdown, and queue-pressure behavior
 - Byte Buddy advice entrypoints and no-op behavior for non-HTTP traffic
 
-One async writer test deliberately points the writer at a directory instead of a file to force the background worker into its failure path. That test is expected to emit a warning log during the build, and the warning is part of validating dropped-event accounting under writer failure.
+### Liberty End-to-End Harness
+
+For a real container-level verification, the repository now includes an opt-in Testcontainers harness that boots two Open Liberty instances with the shaded javaagent attached.
+
+The harness deploys a tiny servlet test application with:
+
+- `/capture/sync/echo` for a normal blocking request
+- `/capture/async/echo` for an async servlet request
+- `/capture/health` for container readiness
+
+Each Liberty container writes newline-delimited JSON events through the agent, and the integration test asserts that the expected request URI, status code, content length, and completion timing appear in the generated NDJSON.
+
+The test containers also replace Liberty's broader default server configuration with a minimal servlet-only `server.xml`, which keeps unrelated startup subsystems out of the harness and removes noisy CORBA/IIOP policy warnings from the test logs.
+
+Run it with Docker available:
+
+```bash
+./scripts/run-liberty-e2e.sh verify
+```
+
+The Liberty E2E test does not use one of the named production profiles. It attaches the shaded agent with a small test-specific configuration so the output stays easy to inspect:
+
+- common settings for both Liberty containers:
+  - `captureBody=true`
+  - `maxBodyBytes=64`
+  - `includeHeaders=SOAPAction|Content-Type`
+  - `diagnosticTransforms=false`
+- sync container only:
+  - `includeUri=.*/sync/.*`
+- async container only:
+  - `includeUri=.*/async/.*`
+
+The harness also forces `output=/tmp/request-capture.ndjson` inside each container and then copies that file back out to `target/liberty-e2e-events/*.ndjson` after the requests complete.
+
+After each successful run, the captured agent output is copied out of the containers into:
+
+- `target/liberty-e2e-events/sync.ndjson`
+- `target/liberty-e2e-events/async.ndjson`
+
+Those exported files are request-focused by default because the Liberty E2E harness disables transform diagnostics for its own agent runs.
+
+If you also want the NDJSON echoed into the terminal during the test run, add:
+
+```bash
+./scripts/run-liberty-e2e.sh -Dliberty.e2e.printEvents=true verify
+```
+
+The launcher resolves the active Docker endpoint from `docker context inspect` when `DOCKER_HOST` is not already set, then passes the Docker host and Testcontainers client strategy into Maven explicitly. That keeps the local run portable across Docker Desktop setups without hardcoding any user-specific filesystem path.
+
+Notes:
+
+- the regular unit test run remains unchanged because the Liberty harness is skipped by default
+- the async request check now asserts that `elapsedMillis` includes the async completion delay rather than stopping at servlet method return
+- the emitted file format is already suitable for shipping to Loki, Promtail, Alloy, Fluent Bit, or another log forwarder for Grafana dashboards
+
+The repository also includes:
+
+- a VS Code task named `Liberty E2E filenet-cews-agent`
+- a GitHub Actions workflow that runs `./scripts/run-liberty-e2e.sh verify` on Docker-capable Ubuntu runners for pushes and pull requests
+
+Example log shipping direction:
+
+```text
+Liberty javaagent -> request-capture.ndjson -> log shipper -> Loki -> Grafana
+```
+
+One async writer test deliberately points the writer at a directory instead of a file to force the background worker into its failure path. The test still validates dropped-event accounting under writer failure, but it now suppresses that expected write error so normal build output stays clean.
 
 ### Performance Harness
 
@@ -134,25 +200,25 @@ This is still an approximation. It measures the core agent path in-process and i
 ## Attach to a JVM
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.4.jar=output=/var/log/request-capture.ndjson,includeUri=.*/wsi/.*,maxBodyBytes=4096
+-javaagent:/path/to/filenet-cews-agent-0.1.5.jar=output=/var/log/request-capture.ndjson,includeUri=.*/wsi/.*,maxBodyBytes=4096
 ```
 
 Recommended FileNet CEWS low-overhead production candidate profile:
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.4.jar=profile=filenet-cews-low-overhead,output=/var/log/cews-capture.ndjson
+-javaagent:/path/to/filenet-cews-agent-0.1.5.jar=profile=filenet-cews-low-overhead,output=/var/log/cews-capture.ndjson
 ```
 
 Alternate FileNet CEWS headers-only diagnostic profile:
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.4.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson
+-javaagent:/path/to/filenet-cews-agent-0.1.5.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson
 ```
 
 Recommended FileNet CEWS targeted body preview profile:
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.4.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson,captureBody=true,maxBodyBytes=2048
+-javaagent:/path/to/filenet-cews-agent-0.1.5.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson,captureBody=true,maxBodyBytes=2048
 ```
 
 ## Recommended WebSphere Settings
@@ -162,13 +228,13 @@ Add one of the following strings to the WebSphere JVM Generic JVM arguments for 
 Best throughput / lowest overhead:
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.4.jar=profile=filenet-cews-low-overhead,output=/var/log/cews-capture.ndjson
+-javaagent:/path/to/filenet-cews-agent-0.1.5.jar=profile=filenet-cews-low-overhead,output=/var/log/cews-capture.ndjson
 ```
 
 Balanced throughput versus information gathering:
 
 ```bash
--javaagent:/path/to/filenet-cews-agent-0.1.4.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson
+-javaagent:/path/to/filenet-cews-agent-0.1.5.jar=profile=filenet-cews,output=/var/log/cews-capture.ndjson
 ```
 
 What each one gathers:
@@ -187,7 +253,7 @@ Practical guidance:
 Windows WebSphere example:
 
 ```text
--javaagent:F:\path\to\filenet-cews-agent-0.1.4.jar=profile=filenet-cews-low-overhead,output=F:/var/log/cews-capture.ndjson
+-javaagent:F:\path\to\filenet-cews-agent-0.1.5.jar=profile=filenet-cews-low-overhead,output=F:/var/log/cews-capture.ndjson
 ```
 
 Windows syntax notes:
@@ -252,7 +318,7 @@ Wrapper defaults:
 - Linux defaults `agent_dir` to `/opt/filenet-cews-agent`
 - Windows defaults `agent_dir` to `C:\IBM\Agent\filenet-cews-agent`
 - The add wrappers apply `profile=filenet-cews-low-overhead` and write output to `cews-capture.ndjson` in the same directory as the jar
-- The remove wrappers remove the javaagent entry for `filenet-cews-agent-0.1.4.jar`
+- The remove wrappers remove the javaagent entry for `filenet-cews-agent-0.1.5.jar`
 
 After running add or remove, restart the target WebSphere server so the JVM arguments take effect.
 
@@ -269,7 +335,7 @@ Arguments are comma-separated key/value pairs:
 - `maxBodyBytes`: maximum number of request-body bytes to retain per request
 - `queueCapacity`: async writer queue size
 - `sampleRate`: capture 1 out of N matching requests
-- `diagnosticTransforms`: `true` or `false`. Defaults to `true` in `0.1.4` so startup writes `agent-transform` events for each transformed servlet/filter/input-stream class; set it to `false` after diagnostics are no longer needed.
+- `diagnosticTransforms`: `true` or `false`. Defaults to `true` in `0.1.5` so startup writes `agent-transform` events for each transformed servlet/filter/input-stream class; set it to `false` after diagnostics are no longer needed.
 - `includeHeaders`: `|` separated list of headers to include. Empty means include all.
 - `redactHeaders`: `|` separated list of headers to redact
 - `bodyContentTypes`: `|` separated list of content types allowed for body preview. Supports exact match, prefix match via `text/*`, and suffix wildcards like `*/xml`.

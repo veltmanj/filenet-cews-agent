@@ -75,7 +75,7 @@ class AsyncEventWriterTest {
         Path directoryTarget = tempDir.resolve("writer-target-directory");
         Files.createDirectories(directoryTarget);
 
-        AsyncEventWriter writer = new AsyncEventWriter(directoryTarget.toFile(), 8);
+        AsyncEventWriter writer = new AsyncEventWriter(directoryTarget.toFile(), 8, false);
 
         for (int index = 0; index < 5_000; index++) {
             writer.enqueue("event-" + index);

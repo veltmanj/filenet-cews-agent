@@ -127,6 +127,18 @@ class RequestCaptureAgentTest {
     }
 
     @Test
+    void httpServletHandlerMatcherCoversHttpHandlerMethods() throws Exception {
+        @SuppressWarnings("unchecked")
+        net.bytebuddy.matcher.ElementMatcher<MethodDescription> matcher =
+            (net.bytebuddy.matcher.ElementMatcher<MethodDescription>) buildHttpServletHandlerMatcherMethod().invoke(null);
+
+        assertTrue(matcher.matches(new MethodDescription.ForLoadedMethod(
+            TestServlet.class.getDeclaredMethod("doPost", HttpServletRequest.class, HttpServletResponse.class))));
+        assertTrue(!matcher.matches(new MethodDescription.ForLoadedMethod(
+            TestServlet.class.getDeclaredMethod("notService", HttpServletRequest.class, HttpServletResponse.class))));
+    }
+
+    @Test
     void retransformationIsEnabledWhenInstrumentationSupportsIt() throws Exception {
         assertTrue((Boolean) shouldUseRetransformationMethod().invoke(null, instrumentation(true)));
         assertTrue(!(Boolean) shouldUseRetransformationMethod().invoke(null, instrumentation(false)));
@@ -180,6 +192,12 @@ class RequestCaptureAgentTest {
         return method;
     }
 
+    private static Method buildHttpServletHandlerMatcherMethod() throws Exception {
+        Method method = RequestCaptureAgent.class.getDeclaredMethod("buildHttpServletHandlerMatcher");
+        method.setAccessible(true);
+        return method;
+    }
+
     private static Instrumentation instrumentation(boolean retransformSupported) {
         return (Instrumentation) Proxy.newProxyInstance(
             RequestCaptureAgentTest.class.getClassLoader(),
@@ -228,6 +246,12 @@ class RequestCaptureAgentTest {
 
         protected void service(HttpServletRequest request, HttpServletResponse response) {
             // Signature-only helper used to validate Byte Buddy matcher coverage.
+            if (request == response) {
+                throw new IllegalStateException();
+            }
+        }
+
+        protected void doPost(HttpServletRequest request, HttpServletResponse response) {
             if (request == response) {
                 throw new IllegalStateException();
             }

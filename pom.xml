@@ -5,7 +5,7 @@
 
     <groupId>nl.nextend.filenet.cews</groupId>
     <artifactId>filenet-cews-agent</artifactId>
-    <version>0.1.4</version>
+    <version>0.1.5</version>
     <name>filenet-cews-agent</name>
     <description>Low-overhead javaagent for observing inbound servlet requests.</description>
 
@@ -22,6 +22,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <bytebuddy.version>1.14.18</bytebuddy.version>
         <junit.version>5.10.2</junit.version>
+        <testcontainers.version>1.20.6</testcontainers.version>
+        <liberty.e2e.skip>true</liberty.e2e.skip>
     </properties>
 
     <dependencies>
@@ -42,6 +44,24 @@
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>1.7.36</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -58,6 +78,29 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <skipITs>${liberty.e2e.skip}</skipITs>
+                    <includes>
+                        <include>**/*IT.java</include>
+                    </includes>
+                    <systemPropertyVariables>
+                        <agent.project.version>${project.version}</agent.project.version>
+                        <agent.build.directory>${project.build.directory}</agent.build.directory>
+                    </systemPropertyVariables>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -87,4 +130,13 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>liberty-e2e</id>
+            <properties>
+                <liberty.e2e.skip>false</liberty.e2e.skip>
+            </properties>
+        </profile>
+    </profiles>
 </project>

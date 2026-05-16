@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd"
+         version="4.0">
+    <display-name>capture-test</display-name>
+
+    <servlet>
+        <servlet-name>health</servlet-name>
+        <servlet-class>nl.nextend.filenet.cews.testapp.HealthServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>health</servlet-name>
+        <url-pattern>/health</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>syncEcho</servlet-name>
+        <servlet-class>nl.nextend.filenet.cews.testapp.SyncEchoServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>syncEcho</servlet-name>
+        <url-pattern>/sync/echo</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>asyncEcho</servlet-name>
+        <servlet-class>nl.nextend.filenet.cews.testapp.AsyncEchoServlet</servlet-class>
+        <async-supported>true</async-supported>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>asyncEcho</servlet-name>
+        <url-pattern>/async/echo</url-pattern>
+    </servlet-mapping>
+</web-app>

@@ -23,7 +23,7 @@ import java.util.logging.Logger;
  * tell the worker thread to finish draining the queue, flush outstanding lines and
  * terminate cleanly.</p>
  */
-final class AsyncEventWriter implements Closeable {
+public final class AsyncEventWriter implements Closeable {
     private static final int MIN_QUEUE_CAPACITY = 256;
     private static final long SHUTDOWN_JOIN_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(5);
     private static final long SHUTDOWN_SIGNAL_RETRY_MILLIS = 100L;
@@ -35,6 +35,7 @@ final class AsyncEventWriter implements Closeable {
     private final Thread writerThread;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicLong droppedEvents = new AtomicLong();
+    private final boolean logWriteFailures;
 
     /**
      * Creates and starts a new asynchronous writer.
@@ -44,7 +45,12 @@ final class AsyncEventWriter implements Closeable {
      *                 the writer useful under burst traffic
      */
     AsyncEventWriter(File outputFile, int capacity) {
+        this(outputFile, capacity, true);
+    }
+
+    AsyncEventWriter(File outputFile, int capacity, boolean logWriteFailures) {
         this.queue = new ArrayBlockingQueue<>(Math.max(MIN_QUEUE_CAPACITY, capacity));
+        this.logWriteFailures = logWriteFailures;
         this.writerThread = new Thread(new WriterTask(outputFile), "request-capture-writer");
         this.writerThread.setDaemon(true);
         this.writerThread.start();
@@ -55,7 +61,7 @@ final class AsyncEventWriter implements Closeable {
      * event is dropped and the drop counter is incremented instead of blocking the
      * request thread.
      */
-    void enqueue(String event) {
+    public void enqueue(String event) {
         if (event == null || closed.get()) {
             return;
         }
@@ -138,7 +144,9 @@ final class AsyncEventWriter implements Closeable {
                     writer.flush();
                 }
             } catch (IOException ignored) {
-                LOGGER.log(Level.WARNING, ignored, () -> "Failed to write events to " + outputFile);
+                if (logWriteFailures) {
+                    LOGGER.log(Level.WARNING, ignored, () -> "Failed to write events to " + outputFile);
+                }
             } catch (InterruptedException interruptedException) {
                 Thread.currentThread().interrupt();
             }

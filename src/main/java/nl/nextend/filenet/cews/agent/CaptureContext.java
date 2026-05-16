@@ -14,7 +14,7 @@ import java.util.Map;
  * bytes and timing information until the request completes, after which it can be
  * rendered as start and end JSON events.</p>
  */
-final class CaptureContext {
+public final class CaptureContext {
     private static final int DEFAULT_PREVIEW_BUFFER_SIZE = 1024;
     private static final long NANOS_PER_MILLISECOND = 1_000_000L;
 
@@ -226,7 +226,7 @@ final class CaptureContext {
      * <p>This utility is intentionally local to the agent so no external JSON
      * library is required in the shaded runtime.</p>
      */
-    static String jsonQuote(String value) {
+    public static String jsonQuote(String value) {
         if (value == null) {
             return "null";
         }

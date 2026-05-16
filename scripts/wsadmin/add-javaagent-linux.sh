@@ -10,7 +10,7 @@ CELL="$1"
 NODE="$2"
 SERVER="$3"
 AGENT_DIR="${4:-/opt/filenet-cews-agent}"
-AGENT_JAR="$AGENT_DIR/filenet-cews-agent-0.1.4.jar"
+AGENT_JAR="$AGENT_DIR/filenet-cews-agent-0.1.5.jar"
 OUTPUT_FILE="$AGENT_DIR/cews-capture.ndjson"
 AGENT_SPEC="-javaagent:${AGENT_JAR}=profile=filenet-cews-low-overhead,output=${OUTPUT_FILE}"
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
